@@ -46,7 +46,7 @@ def draw_joints(img, joints, line=True, text_scale=0.5):
     return img
 
 
-def show_ori_trans_pred_joints(N, data_info, data_dir, trans, model):
+def show_ori_trans_pred_joints(N, data_info, data_dir, trans, model, size=100):
     """
     Show the original, trainsformed and predicted joints
 
@@ -57,7 +57,6 @@ def show_ori_trans_pred_joints(N, data_info, data_dir, trans, model):
     - trans: An (object) trainsforming image
     - model: used to predict joints
     """
-    size = 220
     ori_imgs = np.zeros((N, 480, 720, 3))
     tran_imgs = np.zeros((N, size, size, 3))
     pred_imgs = np.zeros((N, size, size, 3))
@@ -108,7 +107,7 @@ def show_ori_trans_pred_joints(N, data_info, data_dir, trans, model):
             rgb_img = cv.merge([r,g,b])   
             plt.imshow(rgb_img.astype('uint8'))
             plt.axis('off')
-    plt.show()    
+    plt.show()
 
 if __name__ == '__main__':
     out_dir = 'data/FLIC-full/test_images'

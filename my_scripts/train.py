@@ -11,8 +11,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # set up fransform parameters to find bounding box, crop and resize images
     # transfrom parameters
-    pad_inf = 1  # infimum scale
-    pad_sup = 1.5  # supremum scale
+    pad_inf = 1.5  # infimum scale
+    pad_sup = 2.0  # supremum scale
     size = 100  # resize size
     shift = 3  # radomly shift the bounding box
     lcn = True  # local contrast normalization
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     data_info_file = '%s/train_joints.csv' % data_dir
     model = LinearNet_flic(size)
     trainer = NetworkTrainer(data_dir=data_dir, data_info_file=data_info_file,
-                             model=model, num_epochs=10, trans=trans)
+                             model=model, num_epochs=100, trans=trans)
     if args.mode == 'sgd':
         results = trainer.train()
         results_file = 'results/sgd_trained_resutls.chainer'

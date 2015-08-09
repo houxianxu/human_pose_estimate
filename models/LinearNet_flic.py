@@ -21,7 +21,6 @@ class LinearNet_flic(FunctionSet):
     def forward(self, x_data, y_data, train=True):
         x = Variable(x_data)
         t = Variable(y_data)
-
         h = self.fc(x)
         loss = F.mean_squared_error(t, h)
         return loss, h

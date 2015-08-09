@@ -13,12 +13,12 @@ reload(logging)  # for ipython notebook
 
 
 class NetworkTrainer(object):
-    """Performs SGD on a model"""
+    """Read data from disk and perform GD on a model"""
     def __init__(self, data_dir=None, data_info_file=None, model=None, gpu=-1,
                  val_rate=0.2, reg=0.0, dropout=1.0, learning_rate=1e-4,
                  momentum=0, update='SGD', weight_decay=0.0001, num_iters=50,
                  sample_batches=True, batch_size=32, num_epochs=100,
-                 trans=None, snapshot=5, verbose=True):
+                 trans=None, snapshot=5):
         """
         Inputs:
         - data_dir: The directory storing images
@@ -41,7 +41,6 @@ class NetworkTrainer(object):
         - batch_size: The number of training samples to use in each update.
         - num_epochs: The number of epochs to take over the training data.
         - trans: A Transform object to preprocess image data.
-        - verbose: If True, print status of each epoch.
         """
         self.params = locals()  # store all the parameters
         [setattr(self, key, value) for key, value in self.params.iteritems()]
@@ -53,19 +52,19 @@ class NetworkTrainer(object):
         Loss and trained models are stored in local file.
         Returns a tuple of:
         - best_model: The model with the lowest validation error.
-        - train_loss_history: A list containing the value of loss
-          at each iteration (update) during training.
-        - val_loss_history: A list containing the value of loss
+        - train_loss_batch_history: A list all batch loss in all epochs
+        - train_loss_epoch_history: A list containing the value of loss
+          at each epoch (update) during training.
+        - val_loss_epoch_history: A list containing the value of loss
           at each epoch based on trained model.
         Others:
         - A logging file to store losses.
         - Some model files to store trained model at each epoch
         """
-
         # prepare the training and validation datasets
         data_info_file = self.data_info_file
         data_info = np.array([l.strip() for l in open(data_info_file).readlines()])
-        # data_info = data_info[0:1000]
+        # data_info = data_info[0:100]
         N = len(data_info)
         print (N)
         N_val = int(N * self.val_rate)
@@ -87,7 +86,6 @@ class NetworkTrainer(object):
         self.train_loss_batch_history = []
         train_loss_epoch_history = []
         val_loss_epoch_history = []
-
 
         # Add info into to log file
         logging.info('# of training data: {}'.format(N_train))
@@ -225,8 +223,9 @@ class NetworkTrainer(object):
             if x_batch is None:
                 break
 
-            input_data = np.zeros((batch_size, c, s, s))
-            label = np.zeros((batch_size, d * 2))
+            # chainer only accept float32
+            input_data = np.zeros((batch_size, c, s, s), dtype=np.float32)
+            label = np.zeros((batch_size, d * 2), dtype=np.float32)
 
             # load and transform image
             for i, x in enumerate(x_batch):
@@ -238,7 +237,6 @@ class NetworkTrainer(object):
                                                              joints, result_dir)
                 input_data[i] = x_data_trans.transpose((2, 0, 1))
                 label[i] = joints_trans
-
             # add to data_q
             data_q.put([input_data, label])
 
@@ -269,11 +267,12 @@ class NetworkTrainer(object):
         # training with batch data
         for i in xrange(num_batch):
             input_data, label = data_q.get()
-
             if self.gpu >= 0:  # whether to use gpu
                 input_data = cuda.to_gpu(input_data.astype(np.float32))
                 label = cuda.to_gpu(label.astype(np.float32))
 
+            input_data = input_data.astype(np.float32)
+            label = label.astype(np.float32)
             self.optimizer.zero_grads()  # initial gradients to zero
             loss, pred = self.model.forward(input_data, label, train=True)
             loss.backward()  # compute gradient
@@ -314,7 +313,7 @@ class NetworkTrainer(object):
             num_batch = 1
 
         sum_loss = 0
-        # training with batch data
+        # compute with batch data
         for i in xrange(num_batch):
             input_data, label = data_q.get()
 
@@ -348,7 +347,7 @@ class NetworkTrainer(object):
         # prepare the training and validation datasets
         data_info_file = self.data_info_file
         data_info = np.array([l.strip() for l in open(data_info_file).readlines()])
-        # data_info = data_info[0:1000]
+        # data_info = data_info[0:100]
         N = len(data_info)
         print (N)
         N_val = int(N * self.val_rate)
@@ -390,9 +389,7 @@ class NetworkTrainer(object):
             mask = np.random.choice(N_train, N_val, replace=False)
             train_test_data = input_data[mask]
             label_test = label[mask]
-            train_loss_epoch = self.compute_loss_bgd(train_test_data,
-                                                     label_test,
-                                                     self.num_iters)
+            train_loss_epoch = self.compute_loss_bgd(train_test_data, label_test)
             train_loss_epoch_history.append(train_loss_epoch)
             elapsed_time = time.time() - start_time
             log_msg = self.get_log_msg('training', train_loss_epoch,
@@ -403,7 +400,7 @@ class NetworkTrainer(object):
             # each epoch perform an evaluation on validation set
             start_time = time.time()
             input_data, label = self.all_data_load(val_info, result_dir)
-            val_loss_epoch = self.compute_loss_bgd(input_data, label, self.num_iters)
+            val_loss_epoch = self.compute_loss_bgd(input_data, label)
             val_loss_epoch_history.append(val_loss_epoch)
             elapsed_time = time.time() - start_time
             log_msg = self.get_log_msg('validation', val_loss_epoch,
@@ -445,8 +442,8 @@ class NetworkTrainer(object):
         d = trans.num_joints  # number of joints
 
         N = data_info.shape[0]
-        input_data = np.zeros((N, c, s, s))
-        label = np.zeros((N, d * 2))
+        input_data = np.zeros((N, c, s, s), dtype=np.float32)
+        label = np.zeros((N, d * 2), dtype=np.float32)
 
         pbar = ProgressBar(N)
         # load and transform image
@@ -479,11 +476,7 @@ class NetworkTrainer(object):
             pbar.update(it)
         pbar.finish()
 
-    def compute_loss_bgd(self, input_data, label, num_iters):
-        sum_loss = 0
-        for it in xrange(num_iters):
-            loss, pred = self.model.forward(input_data, label, train=True)
-            sum_loss += float(cuda.to_cpu(loss.data))
-        mean_loss = sum_loss / num_iters
-        return mean_loss
+    def compute_loss_bgd(self, input_data, label):
+        loss, pred = self.model.forward(input_data, label, train=False)
+        return float(cuda.to_cpu(loss.data))
 
