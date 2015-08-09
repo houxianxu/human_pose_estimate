@@ -8,7 +8,12 @@ Machine Learning for Human Pose Estimate
 
 ## Using linear regression to predict the joints
 - Datasets: [subset](http://cims.nyu.edu/~tompson/flic_plus.htm) of full [FLIC](http://vision.grasp.upenn.edu/cgi-bin/index.php?n=VideoLearning.FLIC)
-- The result is in this [Ipython Notebook](linear_regression_training_flic.ipynb)
+- There are five different approach:
+	1. Use all the pixels of transformed pictures as inputs and SGD -> `python my_scripts/train.py`
+	2. Use all the pixels of transformed pictures as inputs and BGD -> `python my_scripts/train.py --mode bgd`
+	3. Use SIFT based on Bag-of-Word algorithm and SGD -> `python my_scripts/train_sift.py`
+	4. Use pixels of patch images around the joints and SGD -> `python my_scripts/train_bgd.py`
+- Training results are in [Notebook](training_results.ipynb)
 
 ## Reference
 - [Deeppose](https://github.com/mitmul/deeppose)
